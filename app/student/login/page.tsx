@@ -38,12 +38,35 @@ export default function StudentLogin() {
 
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      // For demo purposes, navigate to dashboard
-      router.push("/student/dashboard")
-    }, 1500)
+    try {
+      const response = await fetch('http://localhost:5000/api/students/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rollNo: formData.rollNumber,
+          password: formData.password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Store the token in localStorage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('student', JSON.stringify(data.student));
+
+      // Login successful, redirect to dashboard
+      router.push('/student/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (

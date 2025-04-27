@@ -4,12 +4,16 @@ import Link from "next/link"
 import { BookOpen, Home, Users, FileText, BarChart2, Settings, User, LogOut, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CreateTestModal } from "@/components/CreateTestModal"
+import { useState } from "react"
 
 interface FacultyLayoutProps {
   children: ReactNode
 }
 
 export function FacultyLayout({ children }: FacultyLayoutProps) {
+  const [isCreateTestModalOpen, setIsCreateTestModalOpen] = useState(false)
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
@@ -42,7 +46,14 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
               <NavItem href="/faculty/dashboard" icon={<Home className="h-5 w-5" />} label="Dashboard" />
               <NavItem href="/faculty/classes" icon={<Users className="h-5 w-5" />} label="Manage Classes" />
               <NavItem href="/faculty/tests" icon={<FileText className="h-5 w-5" />} label="Manage Tests" />
-              <NavItem href="/faculty/create-test" icon={<Plus className="h-5 w-5" />} label="Create Test" />
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => setIsCreateTestModalOpen(true)}
+              >
+                <Plus className="h-5 w-5" />
+                <span className="ml-2 hidden md:inline">Create Test</span>
+              </Button>
               <NavItem href="/faculty/results" icon={<BarChart2 className="h-5 w-5" />} label="View Results" />
               <NavItem href="/faculty/settings" icon={<Settings className="h-5 w-5" />} label="Settings" />
               <NavItem href="/faculty/profile" icon={<User className="h-5 w-5" />} label="Profile" />
@@ -64,6 +75,12 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
 
         {/* Content */}
         <main className="flex-1 bg-gray-50">{children}</main>
+
+        {/* Create Test Modal */}
+        <CreateTestModal
+          isOpen={isCreateTestModalOpen}
+          onClose={() => setIsCreateTestModalOpen(false)}
+        />
       </div>
     </div>
   )

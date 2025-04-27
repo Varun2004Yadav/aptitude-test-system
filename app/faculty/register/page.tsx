@@ -59,12 +59,35 @@ export default function FacultyRegister() {
 
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      // For demo purposes, navigate to login
-      router.push("/faculty/login")
-    }, 1500)
+    try {
+      const response = await fetch('http://localhost:5000/api/faculty/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          department: formData.department,
+          password: formData.password,
+          facultyId: formData.email.split('@')[0] // Generate facultyId from email
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+
+      // Registration successful, redirect to login
+      router.push('/faculty/login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (

@@ -1,12 +1,18 @@
+"use client";
+
 import type React from "react"
+import { useState } from "react"
 import { FacultyLayout } from "@/components/faculty-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge as UIBadge } from "@/components/ui/badge"
 import { Users, FileText, BarChart2, Clock, Calendar, CheckCircle } from "lucide-react"
 import Link from "next/link"
+import { CreateTestModal } from "@/components/CreateTestModal"
 
 export default function FacultyDashboard() {
+  const [isCreateTestModalOpen, setIsCreateTestModalOpen] = useState(false)
+
   // Sample data
   const activeTests = [
     {
@@ -18,7 +24,7 @@ export default function FacultyDashboard() {
       duration: "60 minutes",
       status: "active",
       studentsAttempted: 15,
-      totalStudents: 45,
+      totalStudents: 45
     },
     {
       id: "2",
@@ -29,8 +35,8 @@ export default function FacultyDashboard() {
       duration: "90 minutes",
       status: "scheduled",
       studentsAttempted: 0,
-      totalStudents: 50,
-    },
+      totalStudents: 50
+    }
   ]
 
   const recentResults = [
@@ -42,7 +48,7 @@ export default function FacultyDashboard() {
       averageScore: 78,
       passPercentage: 92,
       studentsAttempted: 45,
-      totalStudents: 45,
+      totalStudents: 45
     },
     {
       id: "4",
@@ -52,8 +58,8 @@ export default function FacultyDashboard() {
       averageScore: 72,
       passPercentage: 85,
       studentsAttempted: 48,
-      totalStudents: 50,
-    },
+      totalStudents: 50
+    }
   ]
 
   return (
@@ -96,8 +102,12 @@ export default function FacultyDashboard() {
                 <CardTitle>Active Tests</CardTitle>
                 <CardDescription>Currently active and scheduled tests</CardDescription>
               </div>
-              <Button asChild size="sm" className="bg-primary-blue hover:bg-blue-700">
-                <Link href="/faculty/create-test">Create Test</Link>
+              <Button
+                size="sm"
+                className="bg-primary-blue hover:bg-blue-700"
+                onClick={() => setIsCreateTestModalOpen(true)}
+              >
+                Create Test
               </Button>
             </CardHeader>
             <CardContent>
@@ -238,30 +248,32 @@ export default function FacultyDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Create Test Modal */}
+        <CreateTestModal
+          isOpen={isCreateTestModalOpen}
+          onClose={() => setIsCreateTestModalOpen(false)}
+        />
       </div>
     </FacultyLayout>
   )
 }
 
-interface StatsCardProps {
+function StatsCard({ title, value, description, icon }: {
   title: string
   value: string
   description: string
   icon: React.ReactNode
-}
-
-function StatsCard({ title, value, description, icon }: StatsCardProps) {
+}) {
   return (
     <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-gray-500">{title}</h3>
-          {icon}
-        </div>
-        <div className="space-y-1">
-          <p className="text-2xl font-bold">{value}</p>
-          <p className="text-sm text-gray-500">{description}</p>
-        </div>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-gray-500">{description}</p>
       </CardContent>
     </Card>
   )

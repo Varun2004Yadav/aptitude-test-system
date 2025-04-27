@@ -28,6 +28,8 @@ export default function StudentRegister() {
     phone: "",
     password: "",
     confirmPassword: "",
+    department: "",
+    year: ""
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,16 +68,43 @@ export default function StudentRegister() {
 
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      // For demo purposes, navigate to login
-      router.push("/student/login")
-    }, 1500)
+    try {
+      const response = await fetch('http://localhost:5000/api/students/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rollNo: formData.rollNumber,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          password: formData.password,
+          className: formData.className,
+          department: formData.department,
+          year: parseInt(formData.year)
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+
+      // Registration successful, redirect to login
+      router.push('/student/login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const classes = ["B.Tech CSE", "B.Tech ECE", "B.Tech ME", "B.Tech CE", "BCA", "MCA"]
   const sections = ["A", "B", "C", "D"]
+  const departments = ["CSE", "ECE", "ME", "CE", "BCA", "MCA"]
+  const years = ["1", "2", "3", "4"]
 
   return (
     <div className="min-h-screen education-pattern flex flex-col">
@@ -157,6 +186,46 @@ export default function StudentRegister() {
                         {sections.map((section) => (
                           <SelectItem key={section} value={section}>
                             {section}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Select
+                      value={formData.department}
+                      onValueChange={(value) => handleSelectChange("department", value)}
+                    >
+                      <SelectTrigger id="department">
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="year">Year</Label>
+                    <Select
+                      value={formData.year}
+                      onValueChange={(value) => handleSelectChange("year", value)}
+                    >
+                      <SelectTrigger id="year">
+                        <SelectValue placeholder="Select year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year}>
+                            {year}
                           </SelectItem>
                         ))}
                       </SelectContent>
