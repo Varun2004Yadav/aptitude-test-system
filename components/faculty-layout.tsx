@@ -5,14 +5,53 @@ import { BookOpen, Home, Users, FileText, BarChart2, Settings, User, LogOut, Plu
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CreateTestModal } from "@/components/CreateTestModal"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface FacultyLayoutProps {
   children: ReactNode
 }
 
+interface FacultyProfile {
+  name: string;
+  department: string;
+}
+
 export function FacultyLayout({ children }: FacultyLayoutProps) {
   const [isCreateTestModalOpen, setIsCreateTestModalOpen] = useState(false)
+  const [profile, setProfile] = useState<FacultyProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/faculty/profile', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+
+        const data = await response.json();
+        setProfile({
+          name: data.name || 'Name not available',
+          department: data.department || 'Department not available'
+        });
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+        setProfile({
+          name: 'Name not available',
+          department: 'Department not available'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -27,11 +66,11 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
           <div className="flex items-center gap-4">
             <Avatar>
               <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Faculty" />
-              <AvatarFallback>FC</AvatarFallback>
+              <AvatarFallback>{profile?.name?.charAt(0) || 'F'}</AvatarFallback>
             </Avatar>
             <div className="hidden md:block">
-              <p className="text-sm font-medium">Dr. Priya Verma</p>
-              <p className="text-xs text-gray-500">Computer Science Department</p>
+              <p className="text-sm font-medium">{profile?.name || 'Loading...'}</p>
+              <p className="text-xs text-gray-500">{profile?.department || 'Loading...'}</p>
             </div>
           </div>
         </div>
@@ -86,13 +125,7 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
   )
 }
 
-interface NavItemProps {
-  href: string
-  icon: React.ReactNode
-  label: string
-}
-
-function NavItem({ href, icon, label }: NavItemProps) {
+function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
     <Link href={href}>
       <Button variant="ghost" className="w-full justify-start">

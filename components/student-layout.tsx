@@ -1,15 +1,57 @@
+"use client";
 import type React from "react"
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { GraduationCap, Home, BookOpen, FileText, BarChart2, User, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState, useEffect } from "react"
 
 interface StudentLayoutProps {
   children: ReactNode
 }
 
+interface StudentProfile {
+  name: string;
+  className: string;
+}
+
 export function StudentLayout({ children }: StudentLayoutProps) {
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/students/profile', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+
+        const data = await response.json();
+        setProfile({
+          name: data.name || 'Name not available',
+          className: data.className || 'Class not available'
+        });
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+        setProfile({
+          name: 'Name not available',
+          className: 'Class not available'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
@@ -23,11 +65,11 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           <div className="flex items-center gap-4">
             <Avatar>
               <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Student" />
-              <AvatarFallback>ST</AvatarFallback>
+              <AvatarFallback>{profile?.name?.charAt(0) || 'S'}</AvatarFallback>
             </Avatar>
             <div className="hidden md:block">
-              <p className="text-sm font-medium">Rahul Sharma</p>
-              <p className="text-xs text-gray-500">B.Tech CSE - A</p>
+              <p className="text-sm font-medium">{profile?.name || 'Loading...'}</p>
+              <p className="text-xs text-gray-500">{profile?.className || 'Loading...'}</p>
             </div>
           </div>
         </div>
@@ -67,13 +109,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   )
 }
 
-interface NavItemProps {
-  href: string
-  icon: React.ReactNode
-  label: string
-}
-
-function NavItem({ href, icon, label }: NavItemProps) {
+function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
     <Link href={href}>
       <Button variant="ghost" className="w-full justify-start">

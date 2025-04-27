@@ -1,6 +1,9 @@
 import Student from '../models/Student.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import Test from '../models/testModel.js';
+import Result from '../models/resultModel.js';
+import { calculateScore } from '../utils/scoreCalculator.js';
 
 export const registerStudent = async (req, res) => {
     try {
@@ -176,10 +179,121 @@ export const startTest = async (req, res) => {
 
 export const submitTest = async (req, res) => {
     try {
-        const { testId } = req.params;
-        // Implementation for submitting test
-        res.status(200).json({ message: "Test submitted" });
+        const { answers, timeTaken } = req.body;
+        const testId = req.params.testId;
+
+        // Get test details
+        const test = await Test.findById(testId);
+        if (!test) {
+            return res.status(404).json({ message: 'Test not found' });
+        }
+
+        // Calculate score
+        const { totalMarks, marksObtained, percentage, status } = await calculateScore(test, answers);
+
+        // Create result
+        const result = new Result({
+            testId,
+            studentId: req.user._id,
+            answers,
+            totalMarks,
+            marksObtained,
+            percentage,
+            status,
+            timeTaken
+        });
+
+        await result.save();
+
+        // Update test status if all students have completed
+        const totalStudents = await Result.countDocuments({ testId });
+        if (totalStudents === test.totalStudents) {
+            test.status = 'completed';
+            await test.save();
+        }
+
+        res.json({
+            message: 'Test submitted successfully',
+            result: {
+                totalMarks,
+                marksObtained,
+                percentage,
+                status
+            }
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'Error submitting test', error: error.message });
+    }
+};
+
+export const getTestResult = async (req, res) => {
+    try {
+        const result = await Result.findOne({
+            testId: req.params.testId,
+            studentId: req.user._id
+        });
+
+        if (!result) {
+            return res.status(404).json({ message: 'Result not found' });
+        }
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching result', error: error.message });
+    }
+};
+
+// Get available tests for student
+export const getAvailableTests = async (req, res) => {
+    try {
+        const now = new Date();
+        const tests = await Test.find({
+            startTime: { $lte: now },
+            $expr: {
+                $lt: [
+                    { $subtract: [now, "$startTime"] },
+                    { $multiply: ["$duration", 60000] } // Convert minutes to milliseconds
+                ]
+            },
+            status: { $in: ['scheduled', 'active'] }
+        }).select('title startTime duration totalMarks');
+
+        res.json(tests);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching available tests', error: error.message });
+    }
+};
+
+// Get test details and questions
+export const getTestDetails = async (req, res) => {
+    try {
+        const test = await Test.findById(req.params.testId)
+            .select('title questions duration startTime totalMarks');
+
+        if (!test) {
+            return res.status(404).json({ message: 'Test not found' });
+        }
+
+        // Check if test is available
+        const now = new Date();
+        const endTime = new Date(test.startTime.getTime() + test.duration * 60000);
+        
+        if (now < test.startTime || now > endTime) {
+            return res.status(400).json({ message: 'Test is not currently available' });
+        }
+
+        // Check if student has already taken the test
+        const existingResult = await Result.findOne({
+            testId: test._id,
+            studentId: req.user._id
+        });
+
+        if (existingResult) {
+            return res.status(400).json({ message: 'You have already taken this test' });
+        }
+
+        res.json(test);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching test details', error: error.message });
     }
 };
