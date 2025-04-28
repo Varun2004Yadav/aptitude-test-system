@@ -40,12 +40,12 @@ const studentSchema = new mongoose.Schema({
   },
   department: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   year: {
     type: Number,
-    required: true,
+    required: false,
     min: 1,
     max: 4
   },

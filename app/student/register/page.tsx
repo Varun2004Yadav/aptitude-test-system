@@ -101,6 +101,7 @@ export default function StudentRegister() {
     }
   }
 
+  // 🛠️ Original class list
   const classes = ["B.Tech CSE", "B.Tech ECE", "B.Tech ME", "B.Tech CE", "BCA", "MCA"]
   const sections = ["A", "B", "C", "D"]
   const departments = ["CSE", "ECE", "ME", "CE", "BCA", "MCA"]
@@ -125,6 +126,7 @@ export default function StudentRegister() {
                 Create your account to access the aptitude test system
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               {error && (
                 <Alert variant="destructive" className="mb-4">
@@ -178,7 +180,10 @@ export default function StudentRegister() {
 
                   <div className="space-y-2">
                     <Label htmlFor="section">Section</Label>
-                    <Select value={formData.section} onValueChange={(value) => handleSelectChange("section", value)}>
+                    <Select
+                      value={formData.section}
+                      onValueChange={(value) => handleSelectChange("section", value)}
+                    >
                       <SelectTrigger id="section">
                         <SelectValue placeholder="Select section" />
                       </SelectTrigger>
@@ -298,6 +303,7 @@ export default function StudentRegister() {
                 </Button>
               </form>
             </CardContent>
+
             <CardFooter className="flex flex-col space-y-4">
               <div className="text-center text-sm">
                 Already have an account?{" "}

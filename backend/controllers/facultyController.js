@@ -1,64 +1,32 @@
 import Faculty from '../models/Faculty.js';
 import Test from '../models/Test.js';
-import bcrypt from 'bcryptjs';
+import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import xlsx from 'xlsx';
 
 export const registerFaculty = async (req, res) => {
     try {
-        console.log('Registration request received:', req.body);
         const { name, email, password, department, phone } = req.body;
 
-        // Validate required fields
-        if (!name || !email || !password || !department || !phone) {
-            console.log('Missing fields:', { name, email, password, department, phone });
-            return res.status(400).json({ 
-                message: "All fields are required!",
-                missingFields: Object.entries({ name, email, password, department, phone })
-                    .filter(([_, value]) => !value)
-                    .map(([key]) => key)
-            });
-        }
-
-        // Validate phone number
-        if (!/^\d{10}$/.test(phone)) {
-            return res.status(400).json({ 
-                message: "Please enter a valid 10-digit phone number" 
-            });
-        }
-
-        // Validate email
-        if (!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
-            return res.status(400).json({ 
-                message: "Please enter a valid email address" 
-            });
-        }
-
-        // Check if faculty already exists
-        const existingFaculty = await Faculty.findOne({ 
-            $or: [{ email }, { phone }]
-        });
+        // Convert department to uppercase to match enum values
+        const normalizedDepartment = department.toUpperCase();
         
-        if (existingFaculty) {
-            return res.status(400).json({ 
-                message: "Faculty with this email or phone already exists!" 
-            });
-        }
+        // Convert email to lowercase
+        const normalizedEmail = email.toLowerCase();
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        // Hash password directly here instead of relying on middleware
+        const salt = await bcryptjs.genSalt(10);
+        const hashedPassword = await bcryptjs.hash(password, salt);
 
-        // Create new faculty
-        const faculty = new Faculty({
+        // Create and save faculty with hashed password
+        const faculty = await Faculty.create({
             name,
-            email,
+            email: normalizedEmail,
             password: hashedPassword,
-            department,
-            phone
+            department: normalizedDepartment,
+            phone,
+            isActive: true
         });
-
-        await faculty.save();
 
         // Generate JWT token
         const token = jwt.sign(
@@ -80,16 +48,25 @@ export const registerFaculty = async (req, res) => {
         });
     } catch (error) {
         console.error('Registration error:', error);
+        
+        // Handle specific validation errors
         if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({ 
-                message: 'Validation error',
-                errors: Object.values(error.errors).map(err => err.message)
+                message: "Registration failed", 
+                errors: messages 
             });
         }
-        res.status(500).json({ 
-            message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
+        
+        // Handle duplicate key errors (email or phone)
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(400).json({ 
+                message: `This ${field} is already registered` 
+            });
+        }
+
+        res.status(500).json({ message: "Registration failed" });
     }
 };
 
@@ -97,35 +74,54 @@ export const loginFaculty = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Find faculty
-        const faculty = await Faculty.findOne({ email });
+        // Add request logging
+        console.log('Login attempt details:', {
+            attemptedEmail: email,
+            normalizedEmail: email.toLowerCase().trim()
+        });
+
+        // Find faculty without select('+password') since we removed select: false
+        const faculty = await Faculty.findOne({
+            email: email.toLowerCase().trim()
+        });
+        
+        // Log the query result (without sensitive data)
+        console.log('Faculty search result:', {
+            found: faculty ? 'Yes' : 'No',
+            email: email.toLowerCase().trim()
+        });
+        
         if (!faculty) {
-            return res.status(400).json({ message: "Faculty not found!" });
+            console.log('No faculty found with email:', email.toLowerCase().trim());
+            return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // Check if account is active
-        if (!faculty.isActive) {
-            return res.status(403).json({ message: "Account is deactivated!" });
+        // Compare passwords using the schema method
+        const isMatch = await faculty.comparePassword(password);
+        console.log('Password verification:', isMatch ? 'Success' : 'Failed');
+
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // Verify password
-        const isPasswordValid = await faculty.comparePassword(password);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: "Invalid password!" });
-        }
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { id: faculty._id, role: 'faculty' },
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' }
-        );
-
-        // Update last login
+        // Update last login time
         faculty.lastLogin = new Date();
         await faculty.save();
 
+        // Generate token
+        const token = jwt.sign(
+            { 
+                id: faculty._id, 
+                role: 'faculty',
+                email: faculty.email 
+            },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '1d' }
+        );
+
         res.status(200).json({
+            success: true,
+            message: "Login successful",
             token,
             faculty: {
                 id: faculty._id,
@@ -136,7 +132,14 @@ export const loginFaculty = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Login error details:', {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ 
+            success: false,
+            message: "Server error during login" 
+        });
     }
 };
 

@@ -50,13 +50,13 @@ export default function FacultyLogin() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          facultyId: formData.email.split('@')[0], // Generate facultyId from email
+          email: formData.email,
           password: formData.password
         }),
       });
 
       const data = await response.json();
-
+      
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
@@ -64,7 +64,7 @@ export default function FacultyLogin() {
       // Store the token in localStorage
       localStorage.setItem('token', data.token);
       localStorage.setItem('faculty', JSON.stringify(data.faculty));
-
+      
       // Login successful, redirect to dashboard
       router.push('/faculty/dashboard');
     } catch (err) {

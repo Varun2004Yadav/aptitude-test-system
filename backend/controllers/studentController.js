@@ -99,16 +99,21 @@ export const loginStudent = async (req, res) => {
     try {
         const { rollNo, password } = req.body;
 
-        // Find student
-        const student = await Student.findOne({ rollNo });
+        // Find student by rollNo and include password for comparison
+        const student = await Student.findOne({ rollNo }).select('+password');
         if (!student) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // Check password
-        const isMatch = await bcrypt.compare(password, student.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+        // Check if account is active
+        if (!student.isActive) {
+            return res.status(403).json({ message: "Account is deactivated" });
+        }
+
+        // Verify password using bcrypt
+        const isPasswordValid = await bcrypt.compare(password, student.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Invalid credentials" });
         }
 
         // Generate JWT token
@@ -118,20 +123,22 @@ export const loginStudent = async (req, res) => {
             { expiresIn: '1d' }
         );
 
-        res.json({
+        // Return student data without sensitive fields
+        const studentData = {
+            id: student._id,
+            rollNo: student.rollNo,
+            name: student.name,
+            email: student.email,
+            className: student.className
+        };
+
+        res.status(200).json({
             token,
-            student: {
-                id: student._id,
-                rollNo: student.rollNo,
-                name: student.name,
-                email: student.email,
-                className: student.className,
-                department: student.department,
-                year: student.year
-            }
+            student: studentData
         });
     } catch (error) {
-        res.status(500).json({ message: 'Error logging in', error: error.message });
+        console.error('Login error:', error);
+        res.status(500).json({ message: "Server error during login" });
     }
 };
 

@@ -24,10 +24,21 @@ export function StudentLayout({ children }: StudentLayoutProps) {
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No token found');
+        const storedStudent = localStorage.getItem('student');
+        
+        if (!token || !storedStudent) {
+          setLoading(false);
+          return;
         }
 
+        // First set profile from stored data to avoid loading state
+        const studentData = JSON.parse(storedStudent);
+        setProfile({
+          name: studentData.name,
+          className: studentData.className
+        });
+
+        // Then fetch fresh data from server
         const response = await fetch('http://localhost:5000/api/student/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -35,18 +46,15 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           }
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch profile');
+        if (response.ok) {
+          const data = await response.json();
+          setProfile({
+            name: data.name,
+            className: data.className
+          });
         }
-
-        const data = await response.json();
-        setProfile({
-          name: data.name,
-          className: data.className
-        });
       } catch (error) {
         console.error('Error fetching profile:', error);
-        // Don't set default values on error, keep the loading state
       } finally {
         setLoading(false);
       }
@@ -55,9 +63,14 @@ export function StudentLayout({ children }: StudentLayoutProps) {
     fetchProfile();
   }, []);
 
-  // If loading, show loading state
-  if (loading) {
+  // If loading and no profile, show loading state
+  if (loading && !profile) {
     return <div>Loading...</div>;
+  }
+
+  // If no profile after loading, show error state
+  if (!profile) {
+    return <div>Error loading profile. Please try logging in again.</div>;
   }
 
   return (
