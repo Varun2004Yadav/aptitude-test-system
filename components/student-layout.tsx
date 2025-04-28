@@ -23,9 +23,15 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/students/profile', {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No token found');
+        }
+
+        const response = await fetch('http://localhost:5000/api/student/profile', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
 
@@ -35,15 +41,12 @@ export function StudentLayout({ children }: StudentLayoutProps) {
 
         const data = await response.json();
         setProfile({
-          name: data.name || 'Name not available',
-          className: data.className || 'Class not available'
+          name: data.name,
+          className: data.className
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
-        setProfile({
-          name: 'Name not available',
-          className: 'Class not available'
-        });
+        // Don't set default values on error, keep the loading state
       } finally {
         setLoading(false);
       }
@@ -51,6 +54,11 @@ export function StudentLayout({ children }: StudentLayoutProps) {
 
     fetchProfile();
   }, []);
+
+  // If loading, show loading state
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

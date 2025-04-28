@@ -16,5 +16,7 @@ const testSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Faculty" }
 }, { timestamps: true });
 
-const Test = mongoose.model("Test", testSchema);
+// ✅ Check if the model already exists to prevent OverwriteModelError
+const Test = mongoose.models.Test || mongoose.model("Test", testSchema);
+
 export default Test;

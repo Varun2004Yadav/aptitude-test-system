@@ -7,44 +7,58 @@ import xlsx from 'xlsx';
 export const registerFaculty = async (req, res) => {
     try {
         console.log('Registration request received:', req.body);
-        
-        const { facultyId, name, email, password, department, designation, phone } = req.body;
+        const { name, email, password, department, phone } = req.body;
 
         // Validate required fields
-        if (!facultyId || !name || !email || !password || !department || !designation || !phone) {
-            console.log('Missing required fields');
+        if (!name || !email || !password || !department || !phone) {
+            console.log('Missing fields:', { name, email, password, department, phone });
             return res.status(400).json({ 
-                message: "All fields are required!" 
+                message: "All fields are required!",
+                missingFields: Object.entries({ name, email, password, department, phone })
+                    .filter(([_, value]) => !value)
+                    .map(([key]) => key)
+            });
+        }
+
+        // Validate phone number
+        if (!/^\d{10}$/.test(phone)) {
+            return res.status(400).json({ 
+                message: "Please enter a valid 10-digit phone number" 
+            });
+        }
+
+        // Validate email
+        if (!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+            return res.status(400).json({ 
+                message: "Please enter a valid email address" 
             });
         }
 
         // Check if faculty already exists
-        console.log('Checking for existing faculty...');
         const existingFaculty = await Faculty.findOne({ 
-            $or: [{ facultyId }, { email }, { phone }]
+            $or: [{ email }, { phone }]
         });
         
         if (existingFaculty) {
-            console.log('Faculty already exists');
             return res.status(400).json({ 
-                message: "Faculty with this ID, email, or phone already exists!" 
+                message: "Faculty with this email or phone already exists!" 
             });
         }
 
-        console.log('Creating new faculty...');
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
         // Create new faculty
         const faculty = new Faculty({
-            facultyId,
             name,
             email,
-            password,
+            password: hashedPassword,
             department,
-            designation,
             phone
         });
 
         await faculty.save();
-        console.log('Faculty saved successfully');
 
         // Generate JWT token
         const token = jwt.sign(
@@ -53,34 +67,38 @@ export const registerFaculty = async (req, res) => {
             { expiresIn: '1d' }
         );
 
-        console.log('Registration successful');
         res.status(201).json({
             message: "Faculty registered successfully!",
             token,
             faculty: {
                 id: faculty._id,
                 name: faculty.name,
-                facultyId: faculty.facultyId,
                 email: faculty.email,
                 department: faculty.department,
-                designation: faculty.designation
+                phone: faculty.phone
             }
         });
     } catch (error) {
         console.error('Registration error:', error);
         if (error.name === 'ValidationError') {
-            return res.status(400).json({ message: error.message });
+            return res.status(400).json({ 
+                message: 'Validation error',
+                errors: Object.values(error.errors).map(err => err.message)
+            });
         }
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ 
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
 export const loginFaculty = async (req, res) => {
     try {
-        const { facultyId, password } = req.body;
+        const { email, password } = req.body;
 
         // Find faculty
-        const faculty = await Faculty.findOne({ facultyId });
+        const faculty = await Faculty.findOne({ email });
         if (!faculty) {
             return res.status(400).json({ message: "Faculty not found!" });
         }
@@ -112,10 +130,9 @@ export const loginFaculty = async (req, res) => {
             faculty: {
                 id: faculty._id,
                 name: faculty.name,
-                facultyId: faculty.facultyId,
                 email: faculty.email,
                 department: faculty.department,
-                designation: faculty.designation
+                phone: faculty.phone
             }
         });
     } catch (error) {

@@ -1,43 +1,66 @@
 import Student from '../models/Student.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import Test from '../models/testModel.js';
-import Result from '../models/resultModel.js';
+import { Test } from '../models/testModel.js';
+import { StudentTest } from '../models/studentTestModel.js';
 import { calculateScore } from '../utils/scoreCalculator.js';
 
+// Register a new student
 export const registerStudent = async (req, res) => {
     try {
-        const { rollNo, name, email, phone, password, className, department, year } = req.body;
+        console.log('Registration request received:', req.body);
+        const { rollNo, name, email, password, className, department, year, phone } = req.body;
+
+        // Validate required fields
+        if (!rollNo || !name || !email || !password || !className || !department || !year || !phone) {
+            console.log('Missing fields:', { rollNo, name, email, password, className, department, year, phone });
+            return res.status(400).json({ 
+                message: 'All fields are required',
+                missingFields: Object.entries({ rollNo, name, email, password, className, department, year, phone })
+                    .filter(([_, value]) => !value)
+                    .map(([key]) => key)
+            });
+        }
+
+        // Validate phone number
+        if (!/^\d{10}$/.test(phone)) {
+            return res.status(400).json({ message: 'Please enter a valid 10-digit phone number' });
+        }
+
+        // Validate email
+        if (!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+            return res.status(400).json({ message: 'Please enter a valid email address' });
+        }
 
         // Check if student already exists
         const existingStudent = await Student.findOne({ 
             $or: [{ rollNo }, { email }, { phone }]
         });
-        
+
         if (existingStudent) {
-            return res.status(400).json({ 
-                message: "Student with this roll number, email, or phone already exists!" 
-            });
+            return res.status(400).json({ message: 'Student already exists with this roll number, email, or phone' });
         }
 
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
         // Create new student
-        const student = new Student({
+        const student = await Student.create({
             rollNo,
             name,
             email,
-            phone,
-            password,
+            password: hashedPassword,
             className,
             department,
-            year
+            year: parseInt(year),
+            phone
         });
-
-        await student.save();
 
         // Generate JWT token
         const token = jwt.sign(
             { id: student._id, role: 'student' },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '1d' }
         );
 
@@ -46,20 +69,32 @@ export const registerStudent = async (req, res) => {
             token,
             student: {
                 id: student._id,
-                name: student.name,
                 rollNo: student.rollNo,
+                name: student.name,
                 email: student.email,
-                className: student.className
+                className: student.className,
+                department: student.department,
+                year: student.year,
+                phone: student.phone
             }
         });
     } catch (error) {
+        console.error('Registration error:', error);
         if (error.name === 'ValidationError') {
-            return res.status(400).json({ message: error.message });
+            return res.status(400).json({ 
+                message: 'Validation error', 
+                errors: Object.values(error.errors).map(err => err.message)
+            });
         }
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ 
+            message: 'Error registering student', 
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
+// Login student
 export const loginStudent = async (req, res) => {
     try {
         const { rollNo, password } = req.body;
@@ -67,18 +102,13 @@ export const loginStudent = async (req, res) => {
         // Find student
         const student = await Student.findOne({ rollNo });
         if (!student) {
-            return res.status(400).json({ message: "Student not found!" });
+            return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        // Check if account is active
-        if (!student.isActive) {
-            return res.status(403).json({ message: "Account is deactivated!" });
-        }
-
-        // Verify password
-        const isPasswordValid = await student.comparePassword(password);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: "Invalid password!" });
+        // Check password
+        const isMatch = await bcrypt.compare(password, student.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Invalid credentials' });
         }
 
         // Generate JWT token
@@ -88,61 +118,12 @@ export const loginStudent = async (req, res) => {
             { expiresIn: '1d' }
         );
 
-        // Update last login
-        student.lastLogin = new Date();
-        await student.save();
-
-        res.status(200).json({
+        res.json({
             token,
             student: {
                 id: student._id,
-                name: student.name,
                 rollNo: student.rollNo,
-                email: student.email,
-                className: student.className
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-export const getStudentProfile = async (req, res) => {
-    try {
-        const student = await Student.findById(req.user.id)
-            .select('-password')
-            .populate('testHistory.testId', 'title className section');
-        
-        res.status(200).json(student);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-export const updateStudentProfile = async (req, res) => {
-    try {
-        const { name, email, phone, department, year } = req.body;
-        
-        const student = await Student.findById(req.user.id);
-        if (!student) {
-            return res.status(404).json({ message: "Student not found" });
-        }
-
-        // Update fields
-        student.name = name || student.name;
-        student.email = email || student.email;
-        student.phone = phone || student.phone;
-        student.department = department || student.department;
-        student.year = year || student.year;
-
-        await student.save();
-
-        res.status(200).json({
-            message: "Profile updated successfully",
-            student: {
-                id: student._id,
                 name: student.name,
-                rollNo: student.rollNo,
                 email: student.email,
                 className: student.className,
                 department: student.department,
@@ -150,10 +131,49 @@ export const updateStudentProfile = async (req, res) => {
             }
         });
     } catch (error) {
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ message: error.message });
+        res.status(500).json({ message: 'Error logging in', error: error.message });
+    }
+};
+
+// Get student profile
+export const getStudentProfile = async (req, res) => {
+    try {
+        const student = await Student.findById(req.user.id).select('-password');
+        res.json(student);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching profile', error: error.message });
+    }
+};
+
+// Update student profile
+export const updateStudentProfile = async (req, res) => {
+    try {
+        const { name, email, className, department, year } = req.body;
+        
+        const student = await Student.findById(req.user.id);
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
         }
-        res.status(500).json({ message: error.message });
+
+        student.name = name || student.name;
+        student.email = email || student.email;
+        student.className = className || student.className;
+        student.department = department || student.department;
+        student.year = year || student.year;
+
+        await student.save();
+
+        res.json({
+            id: student._id,
+            rollNo: student.rollNo,
+            name: student.name,
+            email: student.email,
+            className: student.className,
+            department: student.department,
+            year: student.year
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating profile', error: error.message });
     }
 };
 
@@ -167,83 +187,6 @@ export const getInstructions = async (req, res) => {
     }
 };
 
-export const startTest = async (req, res) => {
-    try {
-        const { testId } = req.params;
-        // Implementation for starting test
-        res.status(200).json({ message: "Test started" });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-export const submitTest = async (req, res) => {
-    try {
-        const { answers, timeTaken } = req.body;
-        const testId = req.params.testId;
-
-        // Get test details
-        const test = await Test.findById(testId);
-        if (!test) {
-            return res.status(404).json({ message: 'Test not found' });
-        }
-
-        // Calculate score
-        const { totalMarks, marksObtained, percentage, status } = await calculateScore(test, answers);
-
-        // Create result
-        const result = new Result({
-            testId,
-            studentId: req.user._id,
-            answers,
-            totalMarks,
-            marksObtained,
-            percentage,
-            status,
-            timeTaken
-        });
-
-        await result.save();
-
-        // Update test status if all students have completed
-        const totalStudents = await Result.countDocuments({ testId });
-        if (totalStudents === test.totalStudents) {
-            test.status = 'completed';
-            await test.save();
-        }
-
-        res.json({
-            message: 'Test submitted successfully',
-            result: {
-                totalMarks,
-                marksObtained,
-                percentage,
-                status
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ message: 'Error submitting test', error: error.message });
-    }
-};
-
-export const getTestResult = async (req, res) => {
-    try {
-        const result = await Result.findOne({
-            testId: req.params.testId,
-            studentId: req.user._id
-        });
-
-        if (!result) {
-            return res.status(404).json({ message: 'Result not found' });
-        }
-
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching result', error: error.message });
-    }
-};
-
-// Get available tests for student
 export const getAvailableTests = async (req, res) => {
     try {
         const now = new Date();
@@ -256,7 +199,7 @@ export const getAvailableTests = async (req, res) => {
                 ]
             },
             status: { $in: ['scheduled', 'active'] }
-        }).select('title startTime duration totalMarks');
+        }).select('testName startTime duration totalMarks');
 
         res.json(tests);
     } catch (error) {
@@ -264,11 +207,10 @@ export const getAvailableTests = async (req, res) => {
     }
 };
 
-// Get test details and questions
 export const getTestDetails = async (req, res) => {
     try {
         const test = await Test.findById(req.params.testId)
-            .select('title questions duration startTime totalMarks');
+            .select('testName questions duration startTime totalMarks');
 
         if (!test) {
             return res.status(404).json({ message: 'Test not found' });
@@ -283,17 +225,119 @@ export const getTestDetails = async (req, res) => {
         }
 
         // Check if student has already taken the test
-        const existingResult = await Result.findOne({
+        const existingTest = await StudentTest.findOne({
             testId: test._id,
             studentId: req.user._id
         });
 
-        if (existingResult) {
+        if (existingTest) {
             return res.status(400).json({ message: 'You have already taken this test' });
         }
 
         res.json(test);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching test details', error: error.message });
+    }
+};
+
+export const startTest = async (req, res) => {
+    try {
+        const test = await Test.findById(req.params.testId);
+        if (!test) {
+            return res.status(404).json({ message: 'Test not found' });
+        }
+
+        // Check if student has already started the test
+        const existingTest = await StudentTest.findOne({
+            testId: test._id,
+            studentId: req.user._id
+        });
+
+        if (existingTest) {
+            return res.status(200).json({
+                attemptId: existingTest._id,
+                timeRemaining: test.duration - Math.floor((Date.now() - existingTest.startedAt) / 60000)
+            });
+        }
+
+        // Create new test attempt
+        const newTest = await StudentTest.create({
+            studentId: req.user._id,
+            testId: test._id,
+            totalMarks: test.totalMarks,
+            marksObtained: 0,
+            percentage: 0,
+            status: 'in_progress'
+        });
+
+        res.status(200).json({
+            attemptId: newTest._id,
+            timeRemaining: test.duration
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error starting test', error: error.message });
+    }
+};
+
+export const submitTest = async (req, res) => {
+    try {
+        const { answers } = req.body;
+        const test = await Test.findById(req.params.testId);
+        if (!test) {
+            return res.status(404).json({ message: 'Test not found' });
+        }
+
+        // Get student's test attempt
+        const studentTest = await StudentTest.findOne({
+            testId: test._id,
+            studentId: req.user._id
+        });
+
+        if (!studentTest) {
+            return res.status(404).json({ message: 'Test attempt not found' });
+        }
+
+        if (studentTest.status === 'completed') {
+            return res.status(400).json({ message: 'Test already submitted' });
+        }
+
+        // Calculate score
+        const score = await calculateScore(test, answers);
+
+        // Update attempt
+        studentTest.answers = answers;
+        studentTest.marksObtained = score.marksObtained;
+        studentTest.percentage = score.percentage;
+        studentTest.status = 'completed';
+        studentTest.completedAt = Date.now();
+        studentTest.timeTaken = Math.floor((studentTest.completedAt - studentTest.startedAt) / 60000);
+
+        await studentTest.save();
+
+        res.status(200).json({
+            totalMarks: score.totalMarks,
+            marksObtained: score.marksObtained,
+            percentage: score.percentage,
+            timeTaken: studentTest.timeTaken
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error submitting test', error: error.message });
+    }
+};
+
+export const getTestResult = async (req, res) => {
+    try {
+        const result = await StudentTest.findOne({
+            testId: req.params.testId,
+            studentId: req.user._id
+        });
+
+        if (!result) {
+            return res.status(404).json({ message: 'Result not found' });
+        }
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching result', error: error.message });
     }
 };

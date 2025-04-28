@@ -2,13 +2,6 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
 const facultySchema = new mongoose.Schema({
-  facultyId: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    uppercase: true
-  },
   name: { 
     type: String, 
     required: true,
@@ -31,11 +24,6 @@ const facultySchema = new mongoose.Schema({
     type: String, 
     required: true,
     trim: true
-  },
-  designation: {
-    type: String,
-    required: true,
-    enum: ['Professor', 'Associate Professor', 'Assistant Professor', 'Lecturer']
   },
   phone: {
     type: String,

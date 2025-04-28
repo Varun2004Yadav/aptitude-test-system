@@ -69,7 +69,7 @@ export default function StudentRegister() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('http://localhost:5000/api/students/register', {
+      const response = await fetch('http://localhost:5000/api/student/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

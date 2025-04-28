@@ -20,14 +20,16 @@ router.post('/register', registerStudent);
 router.post('/login', loginStudent);
 
 // Protected routes
-router.get('/profile', authMiddleware, requireRole(['student']), getStudentProfile);
-router.put('/profile', authMiddleware, requireRole(['student']), updateStudentProfile);
-router.get('/instructions/:testId', authMiddleware, requireRole(['student']), getInstructions);
-router.post('/start-test/:testId', authMiddleware, requireRole(['student']), startTest);
-router.post('/submit-test/:testId', authMiddleware, requireRole(['student']), submitTest);
-router.get('/tests/available', authMiddleware, requireRole(['student']), getAvailableTests);
-router.get('/tests/:testId', authMiddleware, requireRole(['student']), getTestDetails);
-router.post('/tests/:testId/submit', authMiddleware, requireRole(['student']), submitTest);
-router.get('/tests/:testId/result', authMiddleware, requireRole(['student']), getTestResult);
+router.use(authMiddleware);
+router.use(requireRole(['student']));
+
+router.get('/profile', getStudentProfile);
+router.put('/profile', updateStudentProfile);
+router.get('/instructions/:testId', getInstructions);
+router.get('/tests/available', getAvailableTests);
+router.get('/tests/:testId', getTestDetails);
+router.post('/tests/:testId/start', startTest);
+router.post('/tests/:testId/submit', submitTest);
+router.get('/tests/:testId/result', getTestResult);
 
 export default router;
