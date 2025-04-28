@@ -50,8 +50,8 @@ export default function LandingPage() {
             </div>
             <div className="hidden md:block">
               <img
-                src="/placeholder.svg?height=400&width=500"
-                alt="Students taking online test"
+                src="/online-classroom.jpg"
+                alt="Online classroom illustration"
                 className="rounded-lg shadow-medium"
               />
             </div>
