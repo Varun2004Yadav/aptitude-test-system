@@ -1,3 +1,4 @@
+import uploadRoutes from './routes/uploadRoutes.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -5,6 +6,8 @@ import dotenv from 'dotenv';
 import studentRoutes from './routes/studentRoutes.js';
 import facultyRoutes from './routes/facultyRoutes.js';
 import testRoutes from './routes/testRoutes.js';
+
+
 
 // Suppress deprecation warnings
 process.removeAllListeners('warning');
@@ -19,6 +22,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+
 
 // MongoDB Connection with proper error handling
 const connectDB = async () => {
@@ -52,9 +57,13 @@ app.use((req, res, next) => {
 });
 
 // Routes
+
+
 app.use('/api/student', studentRoutes);
 app.use('/api/faculty', facultyRoutes);
 app.use('/api/tests', testRoutes);
+app.use('/api/upload', uploadRoutes); 
+
 
 // 404 handler
 app.use((req, res) => {
