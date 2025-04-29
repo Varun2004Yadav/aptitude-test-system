@@ -1,10 +1,22 @@
 import express from "express";
-import { getTestDetails, getLeaderboard, getAnalytics } from "../controllers/testController.js";
+import { 
+    createTest,
+    getTestDetails,
+    uploadTestQuestions,
+    getTestQuestions
+} from "../controllers/testController.js";
+import { authMiddleware, requireRole } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/:testId", getTestDetails);
-router.get("/:testId/leaderboard", getLeaderboard);
-router.get("/:testId/analytics", getAnalytics);
+// Protected routes
+router.post('/create', authMiddleware, requireRole(['faculty']), createTest);
+router.get('/:testId', authMiddleware, requireRole(['faculty']), getTestDetails);
+router.post('/:testId/questions', 
+    authMiddleware, 
+    requireRole(['faculty']), 
+    uploadTestQuestions
+);
+router.get('/:testId/questions', authMiddleware, requireRole(['faculty']), getTestQuestions);
 
 export default router;

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
+import bcryptjs from 'bcryptjs';
 
 const studentSchema = new mongoose.Schema({
   rollNo: { 
@@ -75,8 +75,8 @@ const studentSchema = new mongoose.Schema({
 studentSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+    const salt = await bcryptjs.genSalt(10);
+    this.password = await bcryptjs.hash(this.password, salt);
     next();
   } catch (error) {
     next(error);
@@ -85,7 +85,12 @@ studentSchema.pre('save', async function(next) {
 
 // Method to compare password
 studentSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  try {
+    return await bcryptjs.compare(candidatePassword, this.password);
+  } catch (error) {
+    console.error('Password comparison error:', error);
+    return false;
+  }
 };
 
 const Student = mongoose.model("Student", studentSchema);

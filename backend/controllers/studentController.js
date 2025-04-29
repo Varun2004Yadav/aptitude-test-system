@@ -1,5 +1,5 @@
 import Student from '../models/Student.js';
-import bcrypt from 'bcryptjs';
+import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Test } from '../models/testModel.js';
 import { StudentTest } from '../models/studentTestModel.js';
@@ -13,7 +13,7 @@ export const registerStudent = async (req, res) => {
 
         // Validate required fields
         if (!rollNo || !name || !email || !password || !className || !department || !year || !phone) {
-            console.log('Missing fields:', { rollNo, name, email, password, className, department, year, phone });
+            console.log('Missing fields:', { rollNo, name, email, password: '***', className, department, year, phone });
             return res.status(400).json({ 
                 message: 'All fields are required',
                 missingFields: Object.entries({ rollNo, name, email, password, className, department, year, phone })
@@ -34,23 +34,19 @@ export const registerStudent = async (req, res) => {
 
         // Check if student already exists
         const existingStudent = await Student.findOne({ 
-            $or: [{ rollNo }, { email }, { phone }]
+            $or: [{ rollNo: rollNo.toUpperCase() }, { email: email.toLowerCase() }, { phone }]
         });
 
         if (existingStudent) {
             return res.status(400).json({ message: 'Student already exists with this roll number, email, or phone' });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Create new student
+        // Create new student with password hashing handled by the model's pre-save hook
         const student = await Student.create({
-            rollNo,
+            rollNo: rollNo.toUpperCase(),
             name,
-            email,
-            password: hashedPassword,
+            email: email.toLowerCase(),
+            password,  // Will be hashed by the pre-save hook
             className,
             department,
             year: parseInt(year),
@@ -99,9 +95,29 @@ export const loginStudent = async (req, res) => {
     try {
         const { rollNo, password } = req.body;
 
-        // Find student by rollNo and include password for comparison
-        const student = await Student.findOne({ rollNo }).select('+password');
+        if (!rollNo || !password) {
+            return res.status(400).json({ message: "Roll number and password are required" });
+        }
+
+        // Add request logging
+        console.log('Login attempt details:', {
+            attemptedRollNo: rollNo,
+            normalizedRollNo: rollNo.toUpperCase().trim()
+        });
+
+        // Find student by rollNo
+        const student = await Student.findOne({ 
+            rollNo: rollNo.toUpperCase().trim() 
+        });
+
+        // Log the query result (without sensitive data)
+        console.log('Student search result:', {
+            found: student ? 'Yes' : 'No',
+            rollNo: rollNo.toUpperCase().trim()
+        });
+        
         if (!student) {
+            console.log('No student found with roll number:', rollNo.toUpperCase().trim());
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
@@ -110,18 +126,25 @@ export const loginStudent = async (req, res) => {
             return res.status(403).json({ message: "Account is deactivated" });
         }
 
-        // Verify password using bcrypt
-        const isPasswordValid = await bcrypt.compare(password, student.password);
+        // Verify password using bcryptjs
+        const isPasswordValid = await bcryptjs.compare(password, student.password);
+        console.log('Password verification:', isPasswordValid ? 'Success' : 'Failed');
+
         if (!isPasswordValid) {
+            console.log('Invalid password for roll number:', rollNo.toUpperCase().trim());
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
         // Generate JWT token
         const token = jwt.sign(
             { id: student._id, role: 'student' },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '1d' }
         );
+
+        // Update last login time
+        student.lastLogin = new Date();
+        await student.save();
 
         // Return student data without sensitive fields
         const studentData = {
