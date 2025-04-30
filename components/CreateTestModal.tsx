@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { useState } from "react";
+import axios from "axios";
 import { X, FileText, Upload, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,14 +49,13 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
     const parsedQuestions: Question[] = [];
 
     for (let i = 1; i < jsonData.length; i++) {
-      const row = jsonData[i] as [number, string, string, string, string];
-
+      const row = jsonData[i];
       parsedQuestions.push({
         id: String(i),
         questionText: row[1],
-        options: (row[2] as string).split(",").map((opt: string) => opt.trim()),
+        options: (row[2] as string).split(",").map(opt => opt.trim()),
         correctAnswer: row[4] === "MSQ"
-          ? (row[3] as string).split(",").map((ans: string) => ans.trim())
+          ? (row[3] as string).split(",").map(ans => ans.trim())
           : (row[3] as string).trim(),
         type: row[4] as "MCQ" | "MSQ" | "NAT",
       });
@@ -71,12 +71,28 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
   };
 
   const handleSave = async () => {
+    if (!selectedFile) return;
+
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      onClose();
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const res = await axios.post("http://localhost:5000/api/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (res.status === 200) {
+        alert("File uploaded successfully!");
+        onClose();
+      } else {
+        alert("Upload failed.");
+      }
     } catch (error) {
-      console.error('Error saving test:', error);
+      console.error("Upload error:", error);
+      alert("Upload failed.");
     } finally {
       setIsLoading(false);
     }
@@ -88,13 +104,12 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between mb-2">
             <span>Create New Test</span>
-            <Button variant="ghost" size="icon" onClick={onClose}  className="h-8 w-8">
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
               <X />
             </Button>
           </DialogTitle>
         </DialogHeader>
 
-        {/* Step Buttons */}
         <div className="flex items-center justify-center gap-4 mb-4">
           <Button
             variant={activeTab === "details" ? "default" : "outline"}
@@ -129,9 +144,8 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
           </div>
         )}
 
-        {/* SCROLLABLE CONTENT */}
         <div className="flex-1 min-h-0">
-          <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)} className="h-full">
+          <Tabs value={activeTab} onValueChange={val => setActiveTab(val)} className="h-full">
             <TabsContent value="upload" className="flex flex-col h-full">
               {questions.length > 0 && (
                 <div className="flex flex-col gap-4 flex-1 min-h-0">
@@ -192,7 +206,6 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
           </Tabs>
         </div>
 
-        {/* BOTTOM BUTTONS */}
         <div className="flex justify-end gap-4 pt-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel

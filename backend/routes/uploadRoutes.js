@@ -1,36 +1,26 @@
-import express from 'express';
-import multer from 'multer';
-import xlsx from 'xlsx';
-import fs from 'fs';
+import express from "express";
+import multer from "multer";
+import UploadedFile from "../models/uploadedfile.js";
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() }); // 🧠 store in RAM
 
-// Multer config
-const upload = multer({ dest: 'uploads/' });
-
-// Upload route
-router.post('/', upload.single('file'), (req, res) => {
-  const file = req.file;
-
-  if (!file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
+router.post("/", upload.single("file"), async (req, res) => {
   try {
-    // Read uploaded file
-    const workbook = xlsx.readFile(file.path);
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // Clean up file after reading
-    fs.unlinkSync(file.path);
+    const uploaded = new UploadedFile({
+      fileName: req.file.originalname,
+      fileData: req.file.buffer,
+      fileType: req.file.mimetype,
+    });
 
-    // ✅ Send all questions
-    res.json({ preview: data, filename: file.originalname });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to process file' });
+    await uploaded.save();
+
+    res.status(200).json({ message: "File uploaded to DB successfully", file: uploaded });
+  } catch (err) {
+    console.error("Upload Error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
