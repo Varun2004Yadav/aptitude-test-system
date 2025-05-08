@@ -4,51 +4,88 @@ import { useState, useEffect } from "react";
 import { StudentLayout } from "@/components/student-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Calendar, FileText } from "lucide-react";
-import Link from "next/link";
+import { FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-interface Test {
-  _id: string;
-  title: string;
-  startTime: string;
-  duration: number;
-  totalMarks: number;
-}
-
 export default function AvailableTests() {
-  const [tests, setTests] = useState<Test[]>([]);
+  const [hasQuestions, setHasQuestions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
-    fetchAvailableTests();
+    checkQuestions();
   }, []);
 
-  const fetchAvailableTests = async () => {
+  const checkQuestions = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/student/tests/available', {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/student/login');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/student/questions', {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
+      if (response.status === 401) {
+        router.push('/student/login');
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to fetch tests');
+        throw new Error('Failed to check questions');
       }
 
       const data = await response.json();
-      setTests(data);
+      setHasQuestions(data && data.length > 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch tests');
+      setError(err instanceof Error ? err.message : 'Failed to check questions');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStartTest = (testId: string) => {
-    router.push(`/student/tests/${testId}/instructions`);
+  const handleStartTest = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/student/login');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/student/tests/start', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.status === 401) {
+        router.push('/student/login');
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to start test');
+      }
+
+      const data = await response.json();
+      if (data && data.attemptId) {
+        router.push(`/student/test/${data.attemptId}`);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start test');
+    }
   };
 
   if (loading) {
@@ -72,7 +109,7 @@ export default function AvailableTests() {
             <Button
               variant="outline"
               className="mt-4"
-              onClick={fetchAvailableTests}
+              onClick={checkQuestions}
             >
               Retry
             </Button>
@@ -85,49 +122,35 @@ export default function AvailableTests() {
   return (
     <StudentLayout>
       <div className="container py-6">
-        <h1 className="text-2xl font-bold mb-6">Available Tests</h1>
+        <h1 className="text-2xl font-bold mb-6">Aptitude Test</h1>
 
-        {tests.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tests.map((test) => (
-              <Card key={test._id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <CardTitle>{test.title}</CardTitle>
-                  <CardDescription>Total Marks: {test.totalMarks}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>
-                        {new Date(test.startTime).toLocaleDateString()} at{" "}
-                        {new Date(test.startTime).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Clock className="h-4 w-4 mr-2" />
-                      <span>{test.duration} minutes</span>
-                    </div>
-                    <Button
-                      className="w-full bg-primary-blue hover:bg-blue-700"
-                      onClick={() => handleStartTest(test._id)}
-                    >
-                      Start Test
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-500">No tests available at the moment</p>
-            <p className="text-sm text-gray-400 mt-2">
-              Check back later for new tests
-            </p>
-          </div>
-        )}
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle>Aptitude Test</CardTitle>
+            <CardDescription>Test your knowledge and skills</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {hasQuestions ? (
+              <div className="text-center">
+                <p className="mb-4 text-gray-600">Test questions are available. Click below to start.</p>
+                <Button
+                  className="w-full bg-primary-blue hover:bg-blue-700"
+                  onClick={handleStartTest}
+                >
+                  Start Test
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-red-600 mb-2">No test questions available at the moment</p>
+                <p className="text-sm text-gray-500">
+                  Please check back later
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </StudentLayout>
   );

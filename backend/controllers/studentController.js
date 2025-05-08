@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { Test } from '../models/testModel.js';
 import { StudentTest } from '../models/studentTestModel.js';
 import { calculateScore } from '../utils/scoreCalculator.js';
+import TestQuestions from '../models/testQuestions.js';
 
 // Register a new student
 export const registerStudent = async (req, res) => {
@@ -50,7 +51,8 @@ export const registerStudent = async (req, res) => {
             className,
             department,
             year: parseInt(year),
-            phone
+            phone,
+            isActive: true
         });
 
         // Generate JWT token
@@ -99,31 +101,44 @@ export const loginStudent = async (req, res) => {
             return res.status(400).json({ message: "Roll number and password are required" });
         }
 
+        // Normalize roll number
+        const normalizedRollNo = rollNo.toUpperCase().trim();
+
         // Add request logging
         console.log('Login attempt details:', {
             attemptedRollNo: rollNo,
-            normalizedRollNo: rollNo.toUpperCase().trim()
+            normalizedRollNo: normalizedRollNo
         });
 
         // Find student by rollNo
         const student = await Student.findOne({ 
-            rollNo: rollNo.toUpperCase().trim() 
+            rollNo: normalizedRollNo 
         });
 
         // Log the query result (without sensitive data)
         console.log('Student search result:', {
             found: student ? 'Yes' : 'No',
-            rollNo: rollNo.toUpperCase().trim()
+            rollNo: normalizedRollNo
         });
         
         if (!student) {
-            console.log('No student found with roll number:', rollNo.toUpperCase().trim());
-            return res.status(401).json({ message: "Invalid credentials" });
+            // Try to find similar roll numbers to help user
+            const similarStudents = await Student.find({
+                rollNo: { $regex: rollNo.replace(/\D/g, ''), $options: 'i' }
+            }).select('rollNo').limit(3);
+
+            console.log('No student found with roll number:', normalizedRollNo);
+            return res.status(401).json({ 
+                message: "Invalid credentials",
+                suggestion: "Please check your roll number and try again",
+                similarRollNumbers: similarStudents.length > 0 ? 
+                    similarStudents.map(s => s.rollNo) : undefined
+            });
         }
 
         // Check if account is active
         if (!student.isActive) {
-            return res.status(403).json({ message: "Account is deactivated" });
+            return res.status(403).json({ message: "Account is deactivated. Please contact support." });
         }
 
         // Verify password using bcryptjs
@@ -131,9 +146,29 @@ export const loginStudent = async (req, res) => {
         console.log('Password verification:', isPasswordValid ? 'Success' : 'Failed');
 
         if (!isPasswordValid) {
-            console.log('Invalid password for roll number:', rollNo.toUpperCase().trim());
-            return res.status(401).json({ message: "Invalid credentials" });
+            // Increment illegal attempts
+            student.illegalAttempts = (student.illegalAttempts || 0) + 1;
+            await student.save();
+
+            // If too many failed attempts, deactivate account
+            if (student.illegalAttempts >= 5) {
+                student.isActive = false;
+                await student.save();
+                return res.status(403).json({ 
+                    message: "Too many failed attempts. Account has been deactivated. Please contact support."
+                });
+            }
+
+            return res.status(401).json({ 
+                message: "Invalid credentials",
+                attemptsRemaining: 5 - student.illegalAttempts
+            });
         }
+
+        // Reset illegal attempts on successful login
+        student.illegalAttempts = 0;
+        student.lastLogin = new Date();
+        await student.save();
 
         // Generate JWT token
         const token = jwt.sign(
@@ -142,20 +177,19 @@ export const loginStudent = async (req, res) => {
             { expiresIn: '1d' }
         );
 
-        // Update last login time
-        student.lastLogin = new Date();
-        await student.save();
-
         // Return student data without sensitive fields
         const studentData = {
             id: student._id,
             rollNo: student.rollNo,
             name: student.name,
             email: student.email,
-            className: student.className
+            className: student.className,
+            department: student.department,
+            year: student.year
         };
 
         res.status(200).json({
+            message: "Login successful",
             token,
             student: studentData
         });
@@ -272,39 +306,63 @@ export const getTestDetails = async (req, res) => {
 
 export const startTest = async (req, res) => {
     try {
-        const test = await Test.findById(req.params.testId);
-        if (!test) {
-            return res.status(404).json({ message: 'Test not found' });
+        // Check if questions exist
+        const questions = await TestQuestions.find();
+        if (!questions || questions.length === 0) {
+            return res.status(404).json({ message: 'No test questions available' });
         }
 
         // Check if student has already started the test
         const existingTest = await StudentTest.findOne({
-            testId: test._id,
-            studentId: req.user._id
+            studentId: req.user._id,
+            status: 'in_progress'
         });
 
         if (existingTest) {
+            const timeElapsed = Math.floor((Date.now() - existingTest.startedAt) / 60000);
+            const timeRemaining = Math.max(0, 60 - timeElapsed); // 60 minutes default
+
+            if (timeRemaining <= 0) {
+                // If time is up, mark test as completed
+                existingTest.status = 'completed';
+                existingTest.completedAt = Date.now();
+                await existingTest.save();
+                return res.status(400).json({ message: 'Test time has expired' });
+            }
+
             return res.status(200).json({
                 attemptId: existingTest._id,
-                timeRemaining: test.duration - Math.floor((Date.now() - existingTest.startedAt) / 60000)
+                timeRemaining
             });
         }
 
         // Create new test attempt
         const newTest = await StudentTest.create({
             studentId: req.user._id,
-            testId: test._id,
-            totalMarks: test.totalMarks,
+            totalMarks: questions.length, // Each question worth 1 mark
             marksObtained: 0,
             percentage: 0,
-            status: 'in_progress'
+            status: 'in_progress',
+            startedAt: Date.now(),
+            questions: questions.map(q => ({
+                questionId: q._id,
+                question: q.question,
+                options: q.options,
+                correctAnswer: q.correctAnswer
+            }))
         });
 
         res.status(200).json({
             attemptId: newTest._id,
-            timeRemaining: test.duration
+            timeRemaining: 60, // 60 minutes default
+            questions: questions.map(q => ({
+                questionId: q._id,
+                question: q.question,
+                options: q.options
+            }))
         });
     } catch (error) {
+        console.error('Error starting test:', error);
         res.status(500).json({ message: 'Error starting test', error: error.message });
     }
 };
@@ -369,5 +427,24 @@ export const getTestResult = async (req, res) => {
         res.json(result);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching result', error: error.message });
+    }
+};
+
+export const getAllTestQuestions = async (req, res) => {
+    try {
+        const questions = await TestQuestions.find();
+        res.status(200).json(questions);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching questions', error: error.message });
+    }
+};
+
+export const getTestQuestionsForStudent = async (req, res) => {
+    try {
+        // If you want to filter by testId, use: { testId: req.params.testId }
+        const questions = await TestQuestions.find();
+        res.status(200).json(questions);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching questions', error: error.message });
     }
 };

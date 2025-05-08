@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { useState } from "react";
 import axios from "axios";
-import { X, FileText, Upload, ClipboardList } from "lucide-react";
+import { X, FileText, Upload, ClipboardList, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,10 @@ interface CreateTestModalProps {
 
 interface Question {
   id: string;
-  questionText: string;
+  question: string;
   options: string[];
-  correctAnswer: string | string[];
-  type: "MCQ" | "MSQ" | "NAT";
+  correctAnswer: string;
+  explanation: string;
 }
 
 export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
@@ -37,6 +37,21 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
     totalMarks: "",
   });
 
+  const downloadTemplate = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/upload/template');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "questions_template.xlsx";
+      a.click();
+    } catch (error) {
+      console.error("Template download error:", error);
+      alert("Failed to download template");
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -44,22 +59,15 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as Array<Array<string>>;
+    const jsonData = XLSX.utils.sheet_to_json(sheet);
 
-    const parsedQuestions: Question[] = [];
-
-    for (let i = 1; i < jsonData.length; i++) {
-      const row = jsonData[i];
-      parsedQuestions.push({
-        id: String(i),
-        questionText: row[1],
-        options: (row[2] as string).split(",").map(opt => opt.trim()),
-        correctAnswer: row[4] === "MSQ"
-          ? (row[3] as string).split(",").map(ans => ans.trim())
-          : (row[3] as string).trim(),
-        type: row[4] as "MCQ" | "MSQ" | "NAT",
-      });
-    }
+    const parsedQuestions: Question[] = jsonData.map((row: any, index: number) => ({
+      id: String(index + 1),
+      question: row.question,
+      options: [row.optionA, row.optionB, row.optionC, row.optionD],
+      correctAnswer: row.correctAnswer,
+      explanation: row.explanation,
+    }));
 
     setQuestions(parsedQuestions);
     setSelectedFile(file);
@@ -85,7 +93,7 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
       });
 
       if (res.status === 200) {
-        alert("File uploaded successfully!");
+        alert("Questions uploaded successfully!");
         onClose();
       } else {
         alert("Upload failed.");
@@ -121,21 +129,32 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
             Test Details
           </Button>
 
-          <label
-            htmlFor="file-upload"
-            className={`flex items-center justify-center h-14 w-44 cursor-pointer rounded-lg border-2 text-sm gap-2 transition
-              ${activeTab === "upload" ? "bg-[#3b82f6] text-white" : "bg-white text-[#2563eb] hover:bg-blue-50"}`}
-          >
-            <Upload className="h-4 w-4" />
-            Upload File
-            <input
-              id="file-upload"
-              type="file"
-              accept=".csv,.txt,.xlsx"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </label>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={downloadTemplate}
+              className="flex items-center justify-center h-14 w-44 rounded-lg text-sm gap-2 bg-white text-[#2563eb] hover:bg-blue-50"
+            >
+              <Download className="h-4 w-4" />
+              Download Template
+            </Button>
+
+            <label
+              htmlFor="file-upload"
+              className={`flex items-center justify-center h-14 w-44 cursor-pointer rounded-lg border-2 text-sm gap-2 transition
+                ${activeTab === "upload" ? "bg-[#3b82f6] text-white" : "bg-white text-[#2563eb] hover:bg-blue-50"}`}
+            >
+              <Upload className="h-4 w-4" />
+              Upload File
+              <input
+                id="file-upload"
+                type="file"
+                accept=".xlsx"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
 
         {selectedFile && (
@@ -160,20 +179,20 @@ export function CreateTestModal({ isOpen, onClose }: CreateTestModalProps) {
                           <div className="flex items-start gap-2">
                             <FileText className="h-5 w-5 text-blue-600 mt-1" />
                             <div className="space-y-2 flex-1">
-                              <p className="font-medium">{question.questionText}</p>
-                              {question.options.length > 0 && (
-                                <ul className="list-disc list-inside text-sm text-gray-600">
-                                  {question.options.map((option, i) => (
-                                    <li key={i}>{option}</li>
-                                  ))}
-                                </ul>
-                              )}
+                              <p className="font-medium">{question.question}</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {question.options.map((option, i) => (
+                                  <div key={i} className="text-sm text-gray-600">
+                                    <span className="font-medium">{String.fromCharCode(65 + i)}.</span> {option}
+                                  </div>
+                                ))}
+                              </div>
                               <div className="flex items-center gap-2">
-                                <Badge variant="secondary">{question.type}</Badge>
-                                <Badge variant="outline">
-                                  Correct: {Array.isArray(question.correctAnswer)
-                                    ? question.correctAnswer.join(", ")
-                                    : question.correctAnswer}
+                                <Badge variant="secondary">
+                                  Correct: {question.correctAnswer}
+                                </Badge>
+                                <Badge variant="outline" className="max-w-[300px] truncate">
+                                  {question.explanation}
                                 </Badge>
                               </div>
                             </div>

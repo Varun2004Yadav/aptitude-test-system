@@ -14,18 +14,17 @@ dotenv.config();
 
 const app = express();
 
-// Enhanced CORS configuration
+// Middleware
 app.use(cors({
     origin: 'http://localhost:3000',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Authorization']
+    credentials: true
 }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Increase payload limit for file uploads
+// Increase payload size limit for file uploads
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Add authentication check middleware
 app.use((req, res, next) => {
@@ -38,14 +37,14 @@ app.use((req, res, next) => {
 // MongoDB Connection with proper error handling
 const connectDB = async () => {
     try {
-        const conn = await mongoose.connect('mongodb://127.0.0.1:27017/siya_project', {
+        const conn = await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
             family: 4
         });
-        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        console.log(`Connected to MongoDB: ${conn.connection.host}`);
         
         // Verify connection and log available collections
         const collections = await mongoose.connection.db.listCollections().toArray();

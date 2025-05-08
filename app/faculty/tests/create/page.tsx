@@ -8,6 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
+function QuestionUpload({ testId }: { testId: string }) {
+    return <div>Upload questions for test: {testId}</div>;
+}
+
 export default function CreateTest() {
     const router = useRouter()
     const [testData, setTestData] = useState({

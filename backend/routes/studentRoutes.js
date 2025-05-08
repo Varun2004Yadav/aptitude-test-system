@@ -9,7 +9,9 @@ import {
     submitTest,
     getAvailableTests,
     getTestDetails,
-    getTestResult
+    getTestResult,
+    getAllTestQuestions,
+    getTestQuestionsForStudent
 } from '../controllers/studentController.js';
 import { authMiddleware, requireRole } from '../middleware/authMiddleware.js';
 
@@ -31,5 +33,8 @@ router.get('/tests/:testId', getTestDetails);
 router.post('/tests/:testId/start', startTest);
 router.post('/tests/:testId/submit', submitTest);
 router.get('/tests/:testId/result', getTestResult);
+router.get('/questions', getAllTestQuestions);
+router.get('/tests/:testId/questions', getTestQuestionsForStudent);
+router.post('/tests/start', startTest);
 
 export default router;

@@ -71,7 +71,12 @@ const facultySchema = new mongoose.Schema({
   createdTests: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Test'
-  }]
+  }],
+  username: { type: String, trim: true, unique: true, sparse: true },
+  country: { type: String, trim: true },
+  city: { type: String, trim: true },
+  pinCode: { type: String, trim: true },
+  profilePicture: { type: String, trim: true },
 }, {
   timestamps: true,
   collection: 'faculty'

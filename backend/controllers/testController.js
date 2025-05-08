@@ -1,6 +1,6 @@
 import Test from "../models/Test.js";
 import UserTest from "../models/UserTest.js";
-import TestQuestion from '../models/TestQuestion.js';
+import TestQuestion from '../models/testQuestions.js';
 import xlsx from 'xlsx';
 import path from 'path';
 import fs from 'fs';

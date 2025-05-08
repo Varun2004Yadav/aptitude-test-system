@@ -154,35 +154,42 @@ export const getFacultyProfile = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
-
+ 
 export const updateFacultyProfile = async (req, res) => {
     try {
-        const { name, email, phone, department, designation } = req.body;
-        
+        const {
+            name,
+            username,
+            email,
+            phone,
+            department,
+            country,
+            city,
+            pinCode,
+            profilePicture
+        } = req.body;
+
         const faculty = await Faculty.findById(req.user.id);
         if (!faculty) {
             return res.status(404).json({ message: "Faculty not found" });
         }
 
-        // Update fields
-        faculty.name = name || faculty.name;
-        faculty.email = email || faculty.email;
-        faculty.phone = phone || faculty.phone;
-        faculty.department = department || faculty.department;
-        faculty.designation = designation || faculty.designation;
+        // Update all fields if provided
+        if (name) faculty.name = name;
+        if (username) faculty.username = username;
+        if (email) faculty.email = email;
+        if (phone) faculty.phone = phone;
+        if (department) faculty.department = department;
+        if (country) faculty.country = country;
+        if (city) faculty.city = city;
+        if (pinCode) faculty.pinCode = pinCode;
+        if (profilePicture) faculty.profilePicture = profilePicture;
 
         await faculty.save();
 
         res.status(200).json({
             message: "Profile updated successfully",
-            faculty: {
-                id: faculty._id,
-                name: faculty.name,
-                facultyId: faculty.facultyId,
-                email: faculty.email,
-                department: faculty.department,
-                designation: faculty.designation
-            }
+            faculty
         });
     } catch (error) {
         if (error.name === 'ValidationError') {
@@ -235,4 +242,32 @@ export const uploadQuestions = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
+};
+
+export const changeFacultyPassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: "Both old and new passwords are required" });
+    }
+
+    const faculty = await Faculty.findById(req.user.id);
+    if (!faculty) {
+      return res.status(404).json({ message: "Faculty not found" });
+    }
+
+    const isMatch = await faculty.comparePassword(oldPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Old password is incorrect" });
+    }
+
+    // Hash and set new password
+    const salt = await bcryptjs.genSalt(10);
+    faculty.password = await bcryptjs.hash(newPassword, salt);
+    await faculty.save();
+
+    res.status(200).json({ message: "Password updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };

@@ -1,3 +1,5 @@
+"use client";
+
 import type React from "react"
 import type { ReactNode } from "react"
 import Link from "next/link"
@@ -6,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CreateTestModal } from "@/components/CreateTestModal"
 import { useState, useEffect } from "react"
+import { usePathname } from 'next/navigation'
 
 interface FacultyLayoutProps {
   children: ReactNode
@@ -20,6 +23,9 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
   const [isCreateTestModalOpen, setIsCreateTestModalOpen] = useState(false)
   const [profile, setProfile] = useState<FacultyProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const pathname = usePathname();
+  const hideSidebar = pathname === '/faculty/login' || pathname === '/faculty/register';
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -78,60 +84,67 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex">
-        {/* Sidebar */}
-        <aside className="w-16 md:w-64 bg-white border-r border-gray-200 shrink-0">
-          <nav className="p-2 md:p-4 flex flex-col h-full">
-            <div className="space-y-1">
-              <NavItem href="/faculty/dashboard" icon={<Home className="h-5 w-5" />} label="Dashboard" />
-              <NavItem href="/faculty/classes" icon={<Users className="h-5 w-5" />} label="Manage Classes" />
-              <NavItem href="/faculty/tests" icon={<FileText className="h-5 w-5" />} label="Manage Tests" />
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => setIsCreateTestModalOpen(true)}
-              >
-                <Plus className="h-5 w-5" />
-                <span className="ml-2 hidden md:inline">Create Test</span>
-              </Button>
-              <NavItem href="/faculty/results" icon={<BarChart2 className="h-5 w-5" />} label="View Results" />
-              <NavItem href="/faculty/settings" icon={<Settings className="h-5 w-5" />} label="Settings" />
-              <NavItem href="/faculty/profile" icon={<User className="h-5 w-5" />} label="Profile" />
-            </div>
-
-            <div className="mt-auto">
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-                >
-                  <LogOut className="h-5 w-5 mr-2" />
-                  <span className="hidden md:inline">Logout</span>
-                </Button>
-              </Link>
-            </div>
-          </nav>
-        </aside>
-
-        {/* Content */}
+        {!hideSidebar && (
+          <aside className="w-20 md:w-72 bg-transparent shrink-0 flex flex-col items-center py-6">
+            <nav className="w-full flex flex-col h-full">
+              <div className="bg-white rounded-2xl shadow-md p-4 flex flex-col gap-1 w-full">
+                <div className="space-y-1">
+                  <NavItem href="/faculty/dashboard" icon={<Home className="h-5 w-5" />} label="Dashboard" />
+                  <NavItem href="/faculty/profile" icon={<User className="h-5 w-5" />} label="Profile" />
+                  <NavItem href="/faculty/classes" icon={<Users className="h-5 w-5" />} label="Manage Classes" />
+                  <NavItem href="/faculty/tests" icon={<FileText className="h-5 w-5" />} label="Manage Tests" />
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => setIsCreateTestModalOpen(true)}
+                  >
+                    <Plus className="h-5 w-5" />
+                    <span className="ml-2 hidden md:inline">Create Test</span>
+                  </Button>
+                  <NavItem href="/faculty/results" icon={<BarChart2 className="h-5 w-5" />} label="View Results" />
+                  <NavItem href="/faculty/settings" icon={<Settings className="h-5 w-5" />} label="Settings" />
+                </div>
+              </div>
+              <div className="mt-6 w-full">
+                <Link href="/">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                  >
+                    <LogOut className="h-5 w-5 mr-2" />
+                    <span className="hidden md:inline">Logout</span>
+                  </Button>
+                </Link>
+              </div>
+            </nav>
+          </aside>
+        )}
         <main className="flex-1 bg-gray-50">{children}</main>
-
-        {/* Create Test Modal */}
-        <CreateTestModal
-          isOpen={isCreateTestModalOpen}
-          onClose={() => setIsCreateTestModalOpen(false)}
-        />
       </div>
+
+      {/* Create Test Modal */}
+      <CreateTestModal
+        isOpen={isCreateTestModalOpen}
+        onClose={() => setIsCreateTestModalOpen(false)}
+      />
     </div>
   )
 }
 
 function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  const pathname = usePathname();
+  const isActive = pathname === href;
   return (
-    <Link href={href}>
-      <Button variant="ghost" className="w-full justify-start">
-        {icon}
-        <span className="ml-2 hidden md:inline">{label}</span>
-      </Button>
+    <Link href={href} legacyBehavior>
+      <a>
+        <Button
+          variant="ghost"
+          className={`w-full justify-start rounded-xl transition-colors ${isActive ? 'bg-blue-50 text-primary-blue font-semibold' : ''}`}
+        >
+          {icon}
+          <span className="ml-2 hidden md:inline">{label}</span>
+        </Button>
+      </a>
     </Link>
-  )
+  );
 }
